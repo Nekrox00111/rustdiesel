@@ -6,7 +6,7 @@ mod schema;
 
 use diesel::prelude::*;
 use diesel::PgConnection;
-use models::Post;
+use models::{NewPost,Post};
 use std::io::{stdin, Read};
 
 pub struct DieselDemo{
@@ -22,14 +22,22 @@ impl DieselDemo{
     }
 
     pub fn run(&self){
+        //Ask user if we want to read all posts.
         self.display_all_posts();
+        // Hacer preguntarle al usuario si quiere hacer una nueva publicacion.
+        //self.add_new_post();
+        //hacer preguntar usuario so quiere publicar una publicacion.
+        // self.publish_post();
+        // Ask the user if we want delete a post
+        // self.delete_post();
     }
 
     fn display_all_posts(&self){
         use schema::posts::dsl::*;
         let all_post = posts
-        .load::<Post>(&self.database_connection)
-        .expect("Error getting our posts");
+            .filter(published.eq(true))
+            .load::<Post>(&self.database_connection)
+            .expect("Error getting our posts");
         println!("Displaying all posts");
         for post in all_post {
             println!("-------------------");
@@ -41,6 +49,8 @@ impl DieselDemo{
     }
 
     fn add_new_post(&self){
+        use schema::posts;
+
         println!("Creating new post");
         println!("Title: ");
         let mut title = String::new();
@@ -48,7 +58,68 @@ impl DieselDemo{
         println!("Body: ");
         let mut body = String::new();
         stdin().read_line(&mut body).unwrap();
+        let new_post = NewPost::new(title,body);
+        diesel::insert_into(posts::table)
+            .values(&new_post)
+            .get_result::<Post>(&self.database_connection)
+            .expect("Error adding the post");
+    }
 
+    
+    fn publish_post(&self){
+        use schema::posts::dsl::*;
+
+        self.display_unbpublished_titles();
+        println!("What post do you want to publish");
+        let mut post_id = String::new();
+        stdin().read_line(&mut post_id).unwrap();
+        let post_id = post_id.trim().parse::<i32>().unwrap();
+        diesel::update(posts.find(post_id))
+            .set(published.eq(true))
+            .execute(&self.database_connection)
+            .expect("Error publishing post");
+        
+    }
+
+    fn display_unbpublished_titles(&self){
+        use schema::posts::dsl::*;
+
+        let all_post = posts
+        .filter(published.eq(false))
+        .load::<Post>(&self.database_connection)
+        .expect("Error getting all unpublished posts");
+        println!("Displaying all unpublished titles");
+        for post in all_post {
+            println!("{}: {}",post.id, post.title.trim());
+        }
+    }
+
+    fn display_all_titles(&self){
+        use schema::posts::dsl::*;
+
+        let all_post = posts
+        .load::<Post>(&self.database_connection)
+        .expect("Error getting all unpublished posts");
+        println!("Displaying all post titles");
+        for post in all_post {
+            println!("-------------------");
+            println!("{}: {}",post.id, post.title.trim());
+            println!();
+        }
+    }
+
+    fn delete_post(&self){
+        use schema::posts::dsl::*;
+
+        self.display_all_titles();
+        println!("What post do you want to delete");
+        let mut post_id = String::new();
+        stdin().read_line(&mut post_id).unwrap();
+        let post_id = post_id.trim().parse::<i32>().unwrap();
+        diesel::delete(posts.find(post_id))
+            .execute(&self.database_connection)
+            .expect("Error deleting post");
+        
     }
 
 }
